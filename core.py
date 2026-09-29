@@ -18,12 +18,12 @@ def save_state(state):
 
 
 def load_state(text):
-    state = json.loads(text)
-    state["bills"] = {}
-    return state
+    return json.loads(text)
 
 
 def enter(state, plate):
+    if plate in state["vehicles"]:
+        return False
     free = next((s for s, v in state["spots"].items() if v is None), None)
     if free is None:
         return False
@@ -33,12 +33,11 @@ def enter(state, plate):
 
 
 def can_enter(state):
-    return True
+    return any(v is None for v in state["spots"].values())
 
 
 def fee(state, plate, exit_day):
-    days = exit_day - state["vehicles"][plate]["entry_day"]
-    return days - 1
+    return exit_day - state["vehicles"][plate]["entry_day"]
 
 
 def reserve(state, plate, spot, days):
@@ -48,6 +47,15 @@ def reserve(state, plate, spot, days):
 
 
 def expire_reservations(state, current_day):
+    expired = [
+        plate
+        for plate, res in state["reservations"].items()
+        if res["expires"] <= current_day
+    ]
+    for plate in expired:
+        res = state["reservations"].pop(plate)
+        if state["spots"].get(res["spot"]) == plate:
+            state["spots"][res["spot"]] = None
     return True
 
 
@@ -55,13 +63,13 @@ def cancel_reservation(state, plate):
     res = state["reservations"].pop(plate, None)
     if res is None:
         return 0
-    state["spots"][res["spot"]] = None
-    return 0
+    if state["spots"].get(res["spot"]) == plate:
+        state["spots"][res["spot"]] = None
+    return res["deposit"]
 
 
 def exit_vehicle(state, plate, paid):
     if not paid:
-        state["bills"].pop(plate, None)
         return False
     state["spots"][state["vehicles"][plate]["spot"]] = None
     del state["vehicles"][plate]
@@ -71,7 +79,7 @@ def exit_vehicle(state, plate, paid):
 
 def monthly_fee(state, plate, base):
     if state["vehicles"][plate]["monthly"]:
-        return base - 10 - 10
+        return base - 10
     return base
 
 
